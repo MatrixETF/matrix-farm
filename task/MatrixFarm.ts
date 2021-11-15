@@ -80,17 +80,8 @@ task('farm-info')
     .setAction(async (taskArgs, {ethers}) => {
         const signers = await ethers.getSigners();
         const farm = await ethers.getContractAt('MatrixFarm', taskArgs.address, signers[0]);
-        const utils = ethers.utils;
-        const getMultiplier = await farm.getMultiplier("9611953", "9610444", "9610457");
-        const userTotalDepositToken = await  farm.userTotalDepositToken();
-        console.log(userTotalDepositToken.toString());
-        const pendingToken = await farm.pendingToken(0, '0xE00b8f19b58970ea31850172dEd71B226c08Aa14');
         const poolInfo = await farm.poolInfo(0);
-        const userInfo = await farm.userInfo(0, '0xE00b8f19b58970ea31850172dEd71B226c08Aa14');
         console.log(poolInfo.toString());
-        console.log(userInfo.toString());
-        console.log(getMultiplier.toString());
-        console.log(pendingToken.toString());
     });
 
 task('user-total-deposit-token')
