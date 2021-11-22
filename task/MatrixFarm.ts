@@ -80,7 +80,7 @@ task('farm-info')
     .setAction(async (taskArgs, {ethers}) => {
         const signers = await ethers.getSigners();
         const farm = await ethers.getContractAt('MatrixFarm', taskArgs.address, signers[0]);
-        const poolInfo = await farm.poolInfo(0);
+        const poolInfo = await farm.poolInfo(1);
         console.log(poolInfo.toString());
     });
 

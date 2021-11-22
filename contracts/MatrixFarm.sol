@@ -53,6 +53,8 @@ contract MatrixFarm is Ownable {
         uint256 indexed pid,
         uint256 amount
     );
+    event AddNewPool();
+    event SetPool(uint256 indexed pid);
 
     constructor(
         IERC20 _rewardToken
@@ -85,6 +87,7 @@ contract MatrixFarm is Ownable {
         }
         uint256 lastRewardBlock =
         block.number > _startBlock ? block.number : _startBlock;
+        require(_bonusEndBlock > lastRewardBlock, "invalid bonusEndBlock");
         poolInfo.push(
             PoolInfo({
         lpToken : _lpToken,
@@ -94,6 +97,7 @@ contract MatrixFarm is Ownable {
         startBlock : _startBlock,
         bonusEndBlock : _bonusEndBlock
         }));
+        emit AddNewPool();
     }
 
     // Update the given pool's n tokenPerBlock. Can only be called by the owner.
@@ -102,10 +106,12 @@ contract MatrixFarm is Ownable {
         uint256 _tokenPerBlock,
         bool _withUpdate
     ) public onlyOwner {
+        require(_pid < poolInfo.length, "invalid pool id");
         if (_withUpdate) {
             massUpdatePools();
         }
         poolInfo[_pid].tokenPerBlock = _tokenPerBlock;
+        emit SetPool(_pid);
     }
 
     //early end farm pool. set new end block. Can only be called by the owner.
@@ -113,6 +119,7 @@ contract MatrixFarm is Ownable {
         uint256 _pid,
         uint256 _bonusEndBlock
     ) public onlyOwner {
+        require(_pid < poolInfo.length, "invalid pool id");
         poolInfo[_pid].bonusEndBlock = _bonusEndBlock;
         updatePool(_pid);
     }
@@ -132,11 +139,8 @@ contract MatrixFarm is Ownable {
     {
         if (blockNumber <= bonusEndBlock) {
             return blockNumber.sub(lastRewardBlock);
-        } else if (blockNumber > bonusEndBlock) {
-            return
-            bonusEndBlock.sub(lastRewardBlock);
         } else {
-            return 0;
+            return bonusEndBlock.sub(lastRewardBlock);
         }
     }
 
@@ -146,6 +150,7 @@ contract MatrixFarm is Ownable {
     view
     returns (uint256)
     {
+        require(_pid < poolInfo.length, "invalid pool id");
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][_user];
         uint256 accTokenPerShare = pool.accTokenPerShare;
@@ -176,6 +181,7 @@ contract MatrixFarm is Ownable {
 
     // Update reward variables of the given pool to be up-to-date.
     function updatePool(uint256 _pid) public {
+        require(_pid < poolInfo.length, "invalid pool id");
         PoolInfo storage pool = poolInfo[_pid];
         if (block.number <= pool.lastRewardBlock) {
             return;
@@ -209,13 +215,14 @@ contract MatrixFarm is Ownable {
 
     // Deposit LP tokens to MatrixFarm for Token allocation.
     function deposit(uint256 _pid, uint256 _amount) public {
+        require(_pid < poolInfo.length, "invalid pool id");
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
         require(block.number >= pool.startBlock, "farming Not start");
         require(block.number <= pool.bonusEndBlock, "farming end");
         updatePool(_pid);
         if (address(pool.lpToken) == address(rewardToken)) {
-            userTotalDepositToken = userTotalDepositToken + _amount;
+            userTotalDepositToken = userTotalDepositToken.add(_amount);
         }
         if (user.amount > 0) {
             uint256 pending =
@@ -236,12 +243,13 @@ contract MatrixFarm is Ownable {
 
     // Withdraw LP tokens from MatrixFarm.
     function withdraw(uint256 _pid, uint256 _amount) public {
+        require(_pid < poolInfo.length, "invalid pool id");
         PoolInfo storage pool = poolInfo[_pid];
         UserInfo storage user = userInfo[_pid][msg.sender];
-        require(user.amount >= _amount, "withdraw: not good");
+        require(user.amount >= _amount, "invalid withdraw amount");
         updatePool(_pid);
         if (address(pool.lpToken) == address(rewardToken)) {
-            userTotalDepositToken = userTotalDepositToken - _amount;
+            userTotalDepositToken = userTotalDepositToken.sub(_amount);
         }
         uint256 pending =
         user.amount.mul(pool.accTokenPerShare).div(1e12).sub(
@@ -252,16 +260,6 @@ contract MatrixFarm is Ownable {
         user.rewardDebt = user.amount.mul(pool.accTokenPerShare).div(1e12);
         pool.lpToken.safeTransfer(address(msg.sender), _amount);
         emit Withdraw(msg.sender, _pid, _amount);
-    }
-
-    // Withdraw without caring about rewards. EMERGENCY ONLY.
-    function emergencyWithdraw(uint256 _pid) public {
-        PoolInfo storage pool = poolInfo[_pid];
-        UserInfo storage user = userInfo[_pid][msg.sender];
-        pool.lpToken.safeTransfer(address(msg.sender), user.amount);
-        emit EmergencyWithdraw(msg.sender, _pid, user.amount);
-        user.amount = 0;
-        user.rewardDebt = 0;
     }
 
     // Safe token transfer function, just in case if rounding error causes pool to not have enough tokens.
